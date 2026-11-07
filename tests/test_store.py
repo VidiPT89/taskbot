@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from taskbot.models import Task
+from taskbot.models import Priority, Task
 from taskbot.store import StoreError, TaskNotFound, TaskStore, default_path
 
 
@@ -115,3 +115,46 @@ def test_default_path_uses_env_var(
 
 def test_default_path_falls_back_to_home(isolate_home: Path) -> None:
     assert default_path() == isolate_home / ".taskbot.json"
+
+
+def test_add_with_priority_persists(store: TaskStore, path: Path) -> None:
+    store.add("a", Priority.HIGH)
+    assert TaskStore(path).list_tasks()[0].priority == Priority.HIGH
+
+
+def test_list_sorts_by_priority_then_id(store: TaskStore) -> None:
+    store.add("a", Priority.LOW)
+    store.add("b")
+    store.add("c", Priority.HIGH)
+    store.add("d", Priority.LOW)
+    store.add("e", Priority.HIGH)
+    assert [t.text for t in store.list_tasks()] == ["c", "e", "b", "a", "d"]
+
+
+def test_old_file_without_priority_loads_as_med(store: TaskStore, path: Path) -> None:
+    path.write_text(
+        '{"next_id": 2, "tasks": [{"id": 1, "text": "velha", "done": true}]}',
+        encoding="utf-8",
+    )
+    assert store.list_tasks() == [
+        Task(id=1, text="velha", done=True, priority=Priority.MED)
+    ]
+
+
+def test_invalid_priority_in_file_raises_store_error(
+    store: TaskStore, path: Path
+) -> None:
+    content = '{"next_id": 2, "tasks": [{"id": 1, "text": "a", "priority": "x"}]}'
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(StoreError):
+        store.add("b")
+    assert path.read_text(encoding="utf-8") == content
+
+
+def test_file_format_with_priority(store: TaskStore, path: Path) -> None:
+    store.add("a", Priority.HIGH)
+    store.add("b")
+    assert json.loads(path.read_text(encoding="utf-8"))["tasks"] == [
+        {"id": 1, "text": "a", "done": False, "priority": "high"},
+        {"id": 2, "text": "b", "done": False},
+    ]

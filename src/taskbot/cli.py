@@ -1,10 +1,11 @@
 """Comandos da CLI do taskbot."""
 
 from collections.abc import Callable
+from typing import Annotated
 
 import typer
 
-from taskbot.models import Task
+from taskbot.models import Priority, Task
 from taskbot.store import StoreError, TaskNotFound, TaskStore, default_path
 
 app = typer.Typer(no_args_is_help=True, help="Gestor de tarefas simples.")
@@ -30,24 +31,36 @@ def _run[T](action: Callable[[], T]) -> T:
 
 
 def format_task(task: Task) -> str:
-    """Formata uma tarefa numa linha: `1 [x] texto`."""
+    """Formata uma tarefa numa linha: `1 [x] texto` ou `1 [x] (high) texto`.
+
+    A prioridade só é mostrada quando difere de `med`.
+    """
     mark = "x" if task.done else " "
-    return f"{task.id} [{mark}] {task.text}"
+    label = "" if task.priority == Priority.MED else f"({task.priority}) "
+    return f"{task.id} [{mark}] {label}{task.text}"
 
 
 @app.command()
-def add(text: str = typer.Argument(..., help="Texto da tarefa.")) -> None:
+def add(
+    text: str = typer.Argument(..., help="Texto da tarefa."),
+    priority: Annotated[
+        Priority,
+        typer.Option(
+            "--priority", "-p", help="Prioridade da tarefa.", case_sensitive=False
+        ),
+    ] = Priority.MED,
+) -> None:
     """Cria uma tarefa."""
     text = text.strip()
     if not text:
         raise _fail("O texto da tarefa não pode estar vazio.")
-    task = _run(lambda: _store().add(text))
+    task = _run(lambda: _store().add(text, priority))
     typer.echo(f"Criada tarefa {task.id}: {task.text}")
 
 
 @app.command("list")
 def list_tasks() -> None:
-    """Lista as tarefas (id e estado)."""
+    """Lista as tarefas por prioridade (high primeiro), com id e estado."""
     tasks = _run(lambda: _store().list_tasks())
     if not tasks:
         typer.echo("Sem tarefas.")

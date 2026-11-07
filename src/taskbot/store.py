@@ -1,7 +1,9 @@
 """Persistência das tarefas num ficheiro JSON.
 
 Formato do ficheiro:
-    {"next_id": 3, "tasks": [{"id": 1, "text": "...", "done": false}]}
+    {"next_id": 3, "tasks": [{"id": 1, "text": "...", "done": false, "priority": "high"}]}
+
+`priority` (low/med/high) só é gravada quando difere de `med`; em falta assume `med`.
 
 `next_id` só aumenta, por isso os ids nunca são reutilizados, mesmo depois de um `remove`.
 """
@@ -11,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from taskbot.models import Task
+from taskbot.models import Priority, Task
 
 ENV_VAR = "TASKBOT_FILE"
 DEFAULT_FILENAME = ".taskbot.json"
@@ -78,18 +80,18 @@ class TaskStore:
 
     # --- operações ---------------------------------------------------------
 
-    def add(self, text: str) -> Task:
-        """Cria uma tarefa com o próximo id e grava-a."""
+    def add(self, text: str, priority: Priority = Priority.MED) -> Task:
+        """Cria uma tarefa com o próximo id e a prioridade dada, e grava-a."""
         next_id, tasks = self._load()
-        task = Task(id=next_id, text=text)
+        task = Task(id=next_id, text=text, priority=priority)
         tasks.append(task)
         self._save(next_id + 1, tasks)
         return task
 
     def list_tasks(self) -> list[Task]:
-        """Devolve todas as tarefas ordenadas por id."""
+        """Devolve as tarefas por prioridade (high primeiro) e, em empate, por id."""
         _, tasks = self._load()
-        return sorted(tasks, key=lambda t: t.id)
+        return sorted(tasks, key=lambda t: (t.priority.rank, t.id))
 
     def done(self, task_id: int) -> Task:
         """Marca a tarefa como concluída (idempotente)."""

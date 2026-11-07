@@ -4,7 +4,7 @@ import pytest
 from typer.testing import CliRunner
 
 from taskbot.cli import app, format_task
-from taskbot.models import Task
+from taskbot.models import Priority, Task
 
 runner = CliRunner()
 
@@ -92,3 +92,32 @@ def test_corrupt_file_exits_1_and_is_untouched(task_file: Path) -> None:
 def test_no_args_shows_help() -> None:
     result = run()
     assert "add" in result.output and "list" in result.output
+
+
+def test_format_task_shows_non_med_priority() -> None:
+    assert format_task(Task(1, "a", priority=Priority.HIGH)) == "1 [ ] (high) a"
+    assert format_task(Task(2, "b", True, Priority.LOW)) == "2 [x] (low) b"
+    assert format_task(Task(3, "c", priority=Priority.MED)) == "3 [ ] c"
+
+
+def test_add_with_priority_long_and_short() -> None:
+    assert run("add", "a", "--priority", "high").exit_code == 0
+    assert run("add", "b", "-p", "low").exit_code == 0
+    assert run("list").output.splitlines() == ["1 [ ] (high) a", "2 [ ] (low) b"]
+
+
+def test_list_orders_by_priority() -> None:
+    run("add", "a")
+    run("add", "b", "-p", "low")
+    run("add", "c", "-p", "high")
+    assert run("list").output.splitlines() == [
+        "3 [ ] (high) c",
+        "1 [ ] a",
+        "2 [ ] (low) b",
+    ]
+
+
+def test_add_invalid_priority_is_usage_error() -> None:
+    result = run("add", "a", "-p", "urgent")
+    assert result.exit_code == 2
+    assert run("list").output.strip() == "Sem tarefas."
