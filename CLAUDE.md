@@ -11,9 +11,9 @@ CLI de tarefas em Python (`requires-python >=3.13`). Gestor de pacotes: uv. CLI 
 - `src/taskbot/models.py` — dataclass Task
 - `src/taskbot/store.py` — persistência em JSON (variável TASKBOT_FILE, default `~/.taskbot.json`)
 - `src/taskbot/cli.py` — comandos Typer
-- Entry point em `pyproject.toml` (`[project.scripts]`): atualizar se `main` mudar de módulo.
 
 ## Regras
 - Funções públicas com type hints e um teste em `tests/`.
 - Não adicionar dependências sem perguntar.
 - Nunca alterar testes existentes para os fazer passar.
+- Argumentos e opções do Typer com `Annotated[..., typer.Option(...)]`, como já está em `cli.py` (estilo recomendado pelo Typer).
